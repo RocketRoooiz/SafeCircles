@@ -28,14 +28,14 @@
             android:layout_width="35dp"
             android:layout_height="35dp"
             android:layout_marginEnd="10dp"
-            android:background="@android:drawable/ic_popup_reminder"
+            android:background="@drawable/baseline_circle_notifications_24"
             android:backgroundTint="#FFC8A8" />
 
         <Button
             android:id="@+id/delete_Btn"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:background="@android:drawable/ic_delete" />
+            android:layout_width="35dp"
+            android:layout_height="35dp"
+            android:background="@drawable/baseline_clear_24" />
 
     </LinearLayout>
 
