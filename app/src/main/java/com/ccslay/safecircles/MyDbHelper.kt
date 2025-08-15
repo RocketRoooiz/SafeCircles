@@ -45,23 +45,31 @@ class MyDbHelper(private val context: Context) {
 
     fun observeSavedCircles(
         onChange: (List<LocationCircle>) -> Unit,
-        onError: (Exception) -> Unit = { e -> Log.e(TAG, "observeSavedCircles error", e) }
+        onError: (Exception) -> Unit = { e -> android.util.Log.e("LOG","observeSavedCircles", e) }
     ): ListenerRegistration {
-        val uid = auth.currentUser?.uid
-            ?: throw IllegalStateException("User must be logged in before observing circles")
-
+        val uid = auth.currentUser?.uid ?: throw IllegalStateException("User must be logged in")
         return db.collection("users").document(uid)
             .addSnapshotListener { snap, e ->
                 if (e != null) { onError(e); return@addSnapshotListener }
-                if (snap == null || !snap.exists()) { onChange(emptyList()); return@addSnapshotListener }
+                val raw = snap?.get("savedCircles") as? List<*>
+                val all = raw?.mapNotNull { it as? Map<String, Any> }?.map { LocationCircle.fromMap(it) } ?: emptyList()
+                val safeOnly = all.filter { !it.isDisaster }
+                onChange(safeOnly)
+            }
+    }
 
-                val raw = snap.get("savedCircles") as? List<*>
-                val circles = raw
-                    ?.mapNotNull { it as? Map<String, Any> }
-                    ?.map { LocationCircle.fromMap(it) }
-                    ?: emptyList()
-
-                onChange(circles)
+    fun observeDisasterCircles(
+        onChange: (List<LocationCircle>) -> Unit,
+        onError: (Exception) -> Unit = { e -> android.util.Log.e("LOG","observeDisasterCircles", e) }
+    ): ListenerRegistration {
+        val uid = auth.currentUser?.uid ?: throw IllegalStateException("User must be logged in")
+        return db.collection("users").document(uid)
+            .addSnapshotListener { snap, e ->
+                if (e != null) { onError(e); return@addSnapshotListener }
+                val raw = snap?.get("savedCircles") as? List<*>
+                val all = raw?.mapNotNull { it as? Map<String, Any> }?.map { LocationCircle.fromMap(it) } ?: emptyList()
+                val disastersOnly = all.filter { it.isDisaster }
+                onChange(disastersOnly)
             }
     }
 
@@ -189,6 +197,14 @@ class MyDbHelper(private val context: Context) {
                 }
             }
     }
+
+
+
+    /** Adjust path if your disasters are stored elsewhere */
+
+
+
+
 
     fun logout(){
         auth.signOut()

@@ -31,6 +31,7 @@ class LocationCircle(
             val lat = (m["centerLat"] as Number).toDouble()
             val lng = (m["centerLng"] as Number).toDouble()
             val radius = (m["radiusMeters"] as Number).toDouble()
+            val isDisaster = (m["isDisaster"] as? Boolean) ?: false
             val fill = (m["fillColor"] as? Number)?.toInt() ?: android.graphics.Color.argb(120, 57,161,255)
             val stroke = (m["strokeColor"] as? Number)?.toInt() ?: android.graphics.Color.parseColor("#39A1FF")
             val strokeW = (m["strokeWidthPx"] as? Number)?.toFloat() ?: 4f
@@ -39,12 +40,20 @@ class LocationCircle(
                 id = id,
                 center = org.osmdroid.util.GeoPoint(lat, lng),
                 radiusMeters = radius,
+                isDisaster = isDisaster,
                 fillColor = fill,
                 strokeColor = stroke,
                 strokeWidthPx = strokeW
             )
         }
+
+        fun circlesOverlap(a: LocationCircle, b: LocationCircle): Boolean {
+            val dMeters = a.center.distanceToAsDouble(b.center) // osmdroid gives meters
+            return dMeters <= (a.radiusMeters + b.radiusMeters)
+        }
     }
+
+
 
     fun toMap(): Map<String, Any> {
         return mapOf(
@@ -52,6 +61,7 @@ class LocationCircle(
             "centerLat" to center.latitude,
             "centerLng" to center.longitude,
             "radiusMeters" to radiusMeters,
+            "isDisaster" to isDisaster,
             "fillColor" to fillColor,
             "strokeColor" to strokeColor,
             "strokeWidthPx" to strokeWidthPx
@@ -86,8 +96,11 @@ class LocationCircle(
 
             // Turn red if this is a disaster
             if (isDisaster) {
-                outlinePaint.color = Color.RED
-                fillPaint.color = Color.argb(80, 255, 0, 0) // semi-transparent red
+                outlinePaint.color = android.graphics.Color.RED
+                fillPaint.color = android.graphics.Color.argb(80, 255, 0, 0)
+            } else {
+                outlinePaint.color = this@LocationCircle.strokeColor
+                fillPaint.color = this@LocationCircle.fillColor
             }
 
             infoWindow = null                 // no bubble on tap

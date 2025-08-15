@@ -15,23 +15,34 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import android.app.AlertDialog
+import android.os.Build
 import android.text.InputType
 import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.widget.SwitchCompat
 import androidx.compose.material3.Switch
+import com.ccslay.safecircles.notifications.NotificationHelper
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.views.overlay.MapEventsOverlay
 import com.ccslay.safecircles.zone.LocationCircle
 import com.google.firebase.firestore.ListenerRegistration
+import com.ccslay.safecircles.zone.LocationCircle.Companion.circlesOverlap
+
 
 
 class MainActivity : AppCompatActivity() {
     private lateinit var dbHelper: MyDbHelper
     private val myZones = mutableListOf<LocationCircle>()
+    private val disasterZones = mutableListOf<LocationCircle>()
+
     private lateinit var map: MapView
     private var myLocationOverlay: MyLocationNewOverlay? = null
-    private var circlesListener: ListenerRegistration? = null
+    //private var circlesListener: ListenerRegistration? = null
+
+    private var safeListener: ListenerRegistration? = null
+    private var disasterListener: ListenerRegistration? = null
+
+    private lateinit var notifier: NotificationHelper
 
 
     // Ask for location at runtime
@@ -50,6 +61,8 @@ class MainActivity : AppCompatActivity() {
 
         map = findViewById(R.id.map)
         dbHelper = MyDbHelper(this)
+        notifier = NotificationHelper(this)
+
 
         // If permission already granted, enable immediately; otherwise request it
         if (hasLocationPermission()) enableMyLocation()
@@ -59,6 +72,14 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                1
+            )
+        }
         addRecenterButton()
         //This is for adding circles
         //
@@ -70,28 +91,45 @@ class MainActivity : AppCompatActivity() {
         //
         enableTapToCreateZone()
 
-        circlesListener = dbHelper.observeSavedCircles(
-            onChange = { circles ->
+        safeListener = dbHelper.observeSavedCircles(
+            onChange = { safeCircles ->
+                // redraw safe circles
+                myZones.forEach { it.detach() }
+                myZones.clear()
+                safeCircles.forEach { it.attach(map); myZones.add(it) }
 
-                // Attach fetched circles
-                circles.forEach { circle ->
-                    circle.attach(map)
-                    myZones.add(circle)
-                }
-                map.invalidate()
+                checkOverlapsAndNotify(myZones, disasterZones)
             },
             onError = { e ->
                 Toast.makeText(this, "Failed to load circles: ${e.message}", Toast.LENGTH_LONG).show()
             }
         )
 
+        disasterListener = dbHelper.observeDisasterCircles(
+            onChange = { hazardCircles ->
+                // redraw disaster circles
+                disasterZones.forEach { it.detach() }
+                disasterZones.clear()
+                hazardCircles.forEach { it.attach(map); disasterZones.add(it) }
+
+                checkOverlapsAndNotify(myZones, disasterZones)
+            },
+            onError = { e ->
+                Toast.makeText(this, "Failed to load disasters: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        )
+
+
     }
 
     override fun onDestroy() {
-        circlesListener?.remove()
-        circlesListener = null
+        safeListener?.remove()
+        disasterListener?.remove()
+        safeListener = null
+        disasterListener = null
         super.onDestroy()
     }
+
 
     override fun onResume() { super.onResume(); map.onResume(); myLocationOverlay?.enableMyLocation() }
     override fun onPause()  { myLocationOverlay?.disableMyLocation(); map.onPause(); super.onPause() }
@@ -128,9 +166,6 @@ class MainActivity : AppCompatActivity() {
         map.invalidate()
     }
 
-
-
-
     private fun addRecenterButton() {
         val root = findViewById<FrameLayout>(android.R.id.content)
         val btn = ImageButton(this).apply {
@@ -163,7 +198,7 @@ class MainActivity : AppCompatActivity() {
         val receiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
                 p ?: return false
-                showRadiusDialog(defaultMeters = 600.0) { radius, isDisaster ->
+                showRadiusDialog(defaultMeters = 500.0) { radius, isDisaster ->
                     val zone = LocationCircle(
                         id = System.currentTimeMillis().toString(),
                         center = p,
@@ -187,12 +222,8 @@ class MainActivity : AppCompatActivity() {
         map.overlays.add(MapEventsOverlay(receiver))
     }
 
-
-
-
-
     private fun showRadiusDialog(
-        defaultMeters: Double = 600.0,
+        defaultMeters: Double = 500.0,
         onOk: (Double, Boolean) -> Unit // <-- now returns radius + disaster flag
     ) {
         val layout = LinearLayout(this).apply {
@@ -229,6 +260,23 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
+    }
+
+    private fun checkOverlapsAndNotify(
+        safe: List<LocationCircle>,
+        hazards: List<LocationCircle>
+    ) {
+        for (s in safe) {
+            for (h in hazards) {
+                if (circlesOverlap(s, h)) {
+                    notifier.showNotification(
+                        title = "⚠️ Hazard near your zone",
+                        message = "A disaster area overlaps your '${s.id}' zone."
+                    )
+                    return // Avoid multiple notifications at once
+                }
+            }
+        }
     }
 
 
