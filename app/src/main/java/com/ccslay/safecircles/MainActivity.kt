@@ -14,9 +14,15 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import android.app.AlertDialog
+import android.widget.EditText
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.views.overlay.MapEventsOverlay
+import com.ccslay.safecircles.zone.LocationCircle
+
 
 class MainActivity : AppCompatActivity() {
-
+    private val myZones = mutableListOf<LocationCircle>()
     private lateinit var map: MapView
     private var myLocationOverlay: MyLocationNewOverlay? = null
 
@@ -44,9 +50,16 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
-
-        // OPTIONAL: add a recenter (my location) FAB
         addRecenterButton()
+        //This is for adding circles
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        enableTapToCreateZone()
     }
 
     override fun onResume() { super.onResume(); map.onResume(); myLocationOverlay?.enableMyLocation() }
@@ -111,6 +124,53 @@ class MainActivity : AppCompatActivity() {
         lp.bottomMargin = (24 * resources.displayMetrics.density).toInt()
         lp.gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
         root.addView(btn, lp)
+    }
+
+    private fun enableTapToCreateZone() {
+        val receiver = object : MapEventsReceiver {
+            override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                p ?: return false
+                showRadiusDialog(defaultMeters = 600.0) { radius ->
+                    val zone = LocationCircle(
+                        id = System.currentTimeMillis().toString(),
+                        center = p,
+                        radiusMeters = radius, // <-- use the chosen radius
+                        fillColor = android.graphics.Color.argb(120, 57, 161, 255),
+                        strokeColor = android.graphics.Color.parseColor("#39A1FF"),
+                        strokeWidthPx = 4f
+                    )
+                    zone.attach(map)
+                    myZones.add(zone)
+                    Toast.makeText(this@MainActivity, "Watch area added (${radius.toInt()} m)", Toast.LENGTH_SHORT).show()
+                }
+                return true
+            }
+            override fun longPressHelper(p: GeoPoint?): Boolean = false
+        }
+        map.overlays.add(MapEventsOverlay(receiver))
+        map.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+
+    }
+
+    private fun showRadiusDialog(defaultMeters: Double = 600.0, onOk: (Double) -> Unit) {
+        val input = EditText(this).apply {
+            hint = "Radius in meters"
+            setText(defaultMeters.toInt().toString())
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setPadding(48, 24, 48, 24)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Set watch radius")
+            .setView(input)
+            .setPositiveButton("OK") { d, _ ->
+                val v = input.text.toString().toDoubleOrNull()
+                if (v == null || v <= 0) {
+                    Toast.makeText(this, "Enter a positive number", Toast.LENGTH_SHORT).show()
+                } else onOk(v)
+                d.dismiss()
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
     }
 
 
