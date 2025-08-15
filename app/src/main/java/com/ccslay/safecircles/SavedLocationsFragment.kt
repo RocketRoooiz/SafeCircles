@@ -69,13 +69,13 @@ class SavedLocationsFragment : Fragment() {
         // Update the circle's notification status in database
         // You'll need to implement this in your LocationCircle class and database helper
         Toast.makeText(requireContext(),
-            "Notifications ${if (isEnabled) "enabled" else "disabled"} for ${circle.id}",
+            "Notifications ${if (isEnabled) "enabled" else "disabled"} for ${circle.nameType}",
             Toast.LENGTH_SHORT).show()
     }
 
     private fun handleDelete(circle: LocationCircle) {
         dbHelper.deleteLocationCircle(circle.id)
-        Toast.makeText(requireContext(), "Location deleted", Toast.LENGTH_SHORT).show()
+        //Toast.makeText(requireContext(), "Location deleted", Toast.LENGTH_SHORT).show()
     }
 
     override fun onDestroy() {

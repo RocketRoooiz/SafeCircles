@@ -44,6 +44,31 @@ class SavedLocationsAdapter(
 //            onNotificationToggle(circle, newState)
 //        }
 
+        val isEnabled = holder.notificationBtn.tag as? Boolean ?: true
+
+        // Set correct icon
+        holder.notificationBtn.setBackgroundResource(
+            if (isEnabled)
+                R.drawable.baseline_circle_notifications_24
+            else
+                R.drawable.outline_circle_notifications_24
+        )
+
+        holder.notificationBtn.setOnClickListener {
+            val newState = !(holder.notificationBtn.tag as? Boolean ?: true)
+            holder.notificationBtn.tag = newState
+
+            holder.notificationBtn.setBackgroundResource(
+                if (newState)
+                    R.drawable.baseline_circle_notifications_24
+                else
+                    R.drawable.outline_circle_notifications_24
+            )
+
+            // Call back to fragment
+            onNotificationToggle(circle, newState)
+        }
+
         // Handle delete button click
         holder.deleteBtn.setOnClickListener {
             onDelete(circle)
@@ -60,19 +85,5 @@ class SavedLocationsAdapter(
         // For now, we'll create a display name based on coordinates and type
         val name = circle.nameType
         return "$name"
-    }
-
-    private fun updateNotificationButton(button: ImageButton, isEnabled: Boolean) {
-        if (isEnabled) {
-            button.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                android.graphics.Color.parseColor("#FFC8A8")
-            )
-            button.alpha = 1.0f
-        } else {
-            button.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                android.graphics.Color.parseColor("#CCCCCC")
-            )
-            button.alpha = 0.5f
-        }
     }
 }
