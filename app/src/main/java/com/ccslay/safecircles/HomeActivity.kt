@@ -40,6 +40,11 @@ class HomeActivity : AppCompatActivity() {
                     supportActionBar?.title = "Saved Locations"
                     true
                 }
+                R.id.reports -> {
+                    loadFragment(ReportsFragment())
+                    supportActionBar?.title = "Recent Reports"
+                    true
+                }
                 else -> false
             }
         }
