@@ -173,6 +173,7 @@ class MainActivity : AppCompatActivity() {
                     zone.attach(map)
                     myZones.add(zone)
 
+                    MyDbHelper(this@MainActivity).saveLocationCircle(zone)
                     Toast.makeText(
                         this@MainActivity,
                         if (isDisaster) "Disaster area added (${radius.toInt()} m)" else "Watch area added (${radius.toInt()} m)",
