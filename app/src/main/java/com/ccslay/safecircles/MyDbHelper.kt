@@ -10,6 +10,7 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.QuerySnapshot
 import com.google.firebase.firestore.firestore
 
@@ -19,6 +20,67 @@ class MyDbHelper(private val context: Context) {
     }
     private val auth: FirebaseAuth = Firebase.auth
     private val db: FirebaseFirestore = Firebase.firestore
+
+    fun saveLocationCircle(circle: LocationCircle) {
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            Toast.makeText(context, "You must be logged in to save circles.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Convert to map
+        val circleMap = circle.toMap()
+
+        // Save to user's savedCircles array
+        db.collection("users").document(uid)
+            .update("savedCircles", com.google.firebase.firestore.FieldValue.arrayUnion(circleMap))
+            .addOnSuccessListener {
+                Toast.makeText(context, "Circle saved successfully!", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to save circle", e)
+                Toast.makeText(context, "Failed to save circle: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    fun observeSavedCircles(
+        onChange: (List<LocationCircle>) -> Unit,
+        onError: (Exception) -> Unit = { e -> Log.e(TAG, "observeSavedCircles error", e) }
+    ): ListenerRegistration {
+        val uid = auth.currentUser?.uid
+            ?: throw IllegalStateException("User must be logged in before observing circles")
+
+        return db.collection("users").document(uid)
+            .addSnapshotListener { snap, e ->
+                if (e != null) { onError(e); return@addSnapshotListener }
+                if (snap == null || !snap.exists()) { onChange(emptyList()); return@addSnapshotListener }
+
+                val raw = snap.get("savedCircles") as? List<*>
+                val circles = raw
+                    ?.mapNotNull { it as? Map<String, Any> }
+                    ?.map { LocationCircle.fromMap(it) }
+                    ?: emptyList()
+
+                onChange(circles)
+            }
+    }
+
+    fun loadSavedCircles(
+        onSuccess: (List<LocationCircle>) -> Unit,
+        onFailure: (Exception) -> Unit = { e -> Log.e(TAG, "loadSavedCircles error", e) }
+    ) {
+        val uid = auth.currentUser?.uid ?: return
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                val raw = doc.get("savedCircles") as? List<*>
+                val circles = raw?.mapNotNull { it as? Map<String, Any> }?.map { LocationCircle.fromMap(it) }
+                    ?: emptyList()
+                onSuccess(circles)
+            }
+            .addOnFailureListener(onFailure)
+    }
+
+
 
     fun addUser(email: String, name: String, phoneNumber: String, plainPassword: String) {
         val emailTask = db.collection("users").whereEqualTo("email", email).get()
@@ -86,6 +148,8 @@ class MyDbHelper(private val context: Context) {
                 Toast.makeText(context, "Error checking credentials: ${e.message}", Toast.LENGTH_LONG).show()
             }
     }
+
+
 
 
     fun loginUser(email: String, password: String){

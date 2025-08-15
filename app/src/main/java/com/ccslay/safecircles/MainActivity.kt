@@ -15,16 +15,24 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import android.app.AlertDialog
+import android.text.InputType
 import android.widget.EditText
+import android.widget.LinearLayout
+import androidx.appcompat.widget.SwitchCompat
+import androidx.compose.material3.Switch
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.views.overlay.MapEventsOverlay
 import com.ccslay.safecircles.zone.LocationCircle
+import com.google.firebase.firestore.ListenerRegistration
 
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var dbHelper: MyDbHelper
     private val myZones = mutableListOf<LocationCircle>()
     private lateinit var map: MapView
     private var myLocationOverlay: MyLocationNewOverlay? = null
+    private var circlesListener: ListenerRegistration? = null
+
 
     // Ask for location at runtime
     private val requestLocPerms = registerForActivityResult(
@@ -41,6 +49,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         map = findViewById(R.id.map)
+        dbHelper = MyDbHelper(this)
 
         // If permission already granted, enable immediately; otherwise request it
         if (hasLocationPermission()) enableMyLocation()
@@ -60,6 +69,28 @@ class MainActivity : AppCompatActivity() {
         //
         //
         enableTapToCreateZone()
+
+        circlesListener = dbHelper.observeSavedCircles(
+            onChange = { circles ->
+
+                // Attach fetched circles
+                circles.forEach { circle ->
+                    circle.attach(map)
+                    myZones.add(circle)
+                }
+                map.invalidate()
+            },
+            onError = { e ->
+                Toast.makeText(this, "Failed to load circles: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        )
+
+    }
+
+    override fun onDestroy() {
+        circlesListener?.remove()
+        circlesListener = null
+        super.onDestroy()
     }
 
     override fun onResume() { super.onResume(); map.onResume(); myLocationOverlay?.enableMyLocation() }
@@ -126,52 +157,79 @@ class MainActivity : AppCompatActivity() {
         root.addView(btn, lp)
     }
 
+
+
     private fun enableTapToCreateZone() {
         val receiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
                 p ?: return false
-                showRadiusDialog(defaultMeters = 600.0) { radius ->
+                showRadiusDialog(defaultMeters = 600.0) { radius, isDisaster ->
                     val zone = LocationCircle(
                         id = System.currentTimeMillis().toString(),
                         center = p,
-                        radiusMeters = radius, // <-- use the chosen radius
-                        fillColor = android.graphics.Color.argb(120, 57, 161, 255),
-                        strokeColor = android.graphics.Color.parseColor("#39A1FF"),
-                        strokeWidthPx = 4f
+                        radiusMeters = radius,
+                        isDisaster = isDisaster
                     )
                     zone.attach(map)
                     myZones.add(zone)
-                    Toast.makeText(this@MainActivity, "Watch area added (${radius.toInt()} m)", Toast.LENGTH_SHORT).show()
+
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (isDisaster) "Disaster area added (${radius.toInt()} m)" else "Watch area added (${radius.toInt()} m)",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 return true
             }
             override fun longPressHelper(p: GeoPoint?): Boolean = false
         }
         map.overlays.add(MapEventsOverlay(receiver))
-        map.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-
     }
 
-    private fun showRadiusDialog(defaultMeters: Double = 600.0, onOk: (Double) -> Unit) {
-        val input = EditText(this).apply {
-            hint = "Radius in meters"
-            setText(defaultMeters.toInt().toString())
-            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+
+
+
+
+    private fun showRadiusDialog(
+        defaultMeters: Double = 600.0,
+        onOk: (Double, Boolean) -> Unit // <-- now returns radius + disaster flag
+    ) {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(48, 24, 48, 24)
         }
+
+        val radiusInput = EditText(this).apply {
+            hint = "Radius in meters"
+            setText(defaultMeters.toInt().toString())
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+
+        val disasterSwitch = SwitchCompat(this).apply {
+            text = "Mark as Disaster Area"
+            isChecked = false
+        }
+
+
+        layout.addView(radiusInput)
+        layout.addView(disasterSwitch)
+
         AlertDialog.Builder(this)
-            .setTitle("Set watch radius")
-            .setView(input)
+            .setTitle("Set Circle Details")
+            .setView(layout)
             .setPositiveButton("OK") { d, _ ->
-                val v = input.text.toString().toDoubleOrNull()
+                val v = radiusInput.text.toString().toDoubleOrNull()
                 if (v == null || v <= 0) {
                     Toast.makeText(this, "Enter a positive number", Toast.LENGTH_SHORT).show()
-                } else onOk(v)
+                } else {
+                    onOk(v, disasterSwitch.isChecked) // pass both values
+                }
                 d.dismiss()
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
     }
+
 
 
 }

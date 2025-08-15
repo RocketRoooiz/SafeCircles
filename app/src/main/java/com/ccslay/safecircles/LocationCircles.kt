@@ -13,6 +13,7 @@ class LocationCircle(
     val id: String,
     val center: GeoPoint,
     radiusMeters: Double,
+    var isDisaster: Boolean = false,
     // Use ARGB for translucent fill (alpha 0x66 ≈ 40%)
     val fillColor: Int = Color.argb(0x66, 0x39, 0xA1, 0xFF),
     val strokeColor: Int = Color.parseColor("#39A1FF"),
@@ -22,6 +23,41 @@ class LocationCircle(
     private var polygon: Polygon? = null
     var radiusMeters: Double = radiusMeters
         private set
+
+    companion object {
+        fun fromMap(m: Map<String, Any>): LocationCircle {
+            // Firestore gives Numbers (Long/Double). Convert safely.
+            val id = (m["id"] as? String) ?: System.currentTimeMillis().toString()
+            val lat = (m["centerLat"] as Number).toDouble()
+            val lng = (m["centerLng"] as Number).toDouble()
+            val radius = (m["radiusMeters"] as Number).toDouble()
+            val fill = (m["fillColor"] as? Number)?.toInt() ?: android.graphics.Color.argb(120, 57,161,255)
+            val stroke = (m["strokeColor"] as? Number)?.toInt() ?: android.graphics.Color.parseColor("#39A1FF")
+            val strokeW = (m["strokeWidthPx"] as? Number)?.toFloat() ?: 4f
+
+            return LocationCircle(
+                id = id,
+                center = org.osmdroid.util.GeoPoint(lat, lng),
+                radiusMeters = radius,
+                fillColor = fill,
+                strokeColor = stroke,
+                strokeWidthPx = strokeW
+            )
+        }
+    }
+
+    fun toMap(): Map<String, Any> {
+        return mapOf(
+            "id" to id,
+            "centerLat" to center.latitude,
+            "centerLng" to center.longitude,
+            "radiusMeters" to radiusMeters,
+            "fillColor" to fillColor,
+            "strokeColor" to strokeColor,
+            "strokeWidthPx" to strokeWidthPx
+        )
+    }
+
 
     fun attach(mapView: MapView) {
         map = mapView
@@ -35,22 +71,29 @@ class LocationCircle(
 
             // Outline (no deprecated APIs)
             outlinePaint.apply {
-                this.color = this@LocationCircle.strokeColor // our own field, not deprecated
-                this.strokeWidth = strokeWidthPx   // e.g., 4f
+                this.color = this@LocationCircle.strokeColor
+                this.strokeWidth = strokeWidthPx
                 style = android.graphics.Paint.Style.STROKE
                 isAntiAlias = true
             }
 
             // Fill (ARGB! alpha first)
             fillPaint.apply {
-                this.color = this@LocationCircle.fillColor         // e.g., Color.argb(120, 57, 161, 255)
+                this.color = this@LocationCircle.fillColor
                 style = android.graphics.Paint.Style.FILL
                 isAntiAlias = true
+            }
+
+            // Turn red if this is a disaster
+            if (isDisaster) {
+                outlinePaint.color = Color.RED
+                fillPaint.color = Color.argb(80, 255, 0, 0) // semi-transparent red
             }
 
             infoWindow = null                 // no bubble on tap
             isEnabled = true
         }
+
 
         polygon = poly
 
