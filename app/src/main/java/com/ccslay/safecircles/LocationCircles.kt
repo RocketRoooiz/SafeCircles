@@ -14,6 +14,7 @@ class LocationCircle(
     val center: GeoPoint,
     radiusMeters: Double,
     var isDisaster: Boolean = false,
+    var nameType: String = "",
     // Use ARGB for translucent fill (alpha 0x66 ≈ 40%)
     val fillColor: Int = Color.argb(0x66, 0x39, 0xA1, 0xFF),
     val strokeColor: Int = Color.parseColor("#39A1FF"),
@@ -32,6 +33,7 @@ class LocationCircle(
             val lng = (m["centerLng"] as Number).toDouble()
             val radius = (m["radiusMeters"] as Number).toDouble()
             val isDisaster = (m["isDisaster"] as? Boolean) ?: false
+            val nameType = (m["nameType"] as? String) ?: ""
             val fill = (m["fillColor"] as? Number)?.toInt() ?: android.graphics.Color.argb(120, 57,161,255)
             val stroke = (m["strokeColor"] as? Number)?.toInt() ?: android.graphics.Color.parseColor("#39A1FF")
             val strokeW = (m["strokeWidthPx"] as? Number)?.toFloat() ?: 4f
@@ -41,6 +43,7 @@ class LocationCircle(
                 center = org.osmdroid.util.GeoPoint(lat, lng),
                 radiusMeters = radius,
                 isDisaster = isDisaster,
+                nameType = nameType,
                 fillColor = fill,
                 strokeColor = stroke,
                 strokeWidthPx = strokeW
@@ -62,6 +65,7 @@ class LocationCircle(
             "centerLng" to center.longitude,
             "radiusMeters" to radiusMeters,
             "isDisaster" to isDisaster,
+            "nameType" to nameType,
             "fillColor" to fillColor,
             "strokeColor" to strokeColor,
             "strokeWidthPx" to strokeWidthPx

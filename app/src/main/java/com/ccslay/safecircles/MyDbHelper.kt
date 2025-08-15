@@ -199,9 +199,36 @@ class MyDbHelper(private val context: Context) {
     }
 
 
-
     /** Adjust path if your disasters are stored elsewhere */
 
+
+    fun deleteLocationCircle(id: String) {
+        val uid = auth.currentUser?.uid ?: return
+
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { document ->
+                val circles = document.get("savedCircles") as? List<Map<String, Any>> ?: return@addOnSuccessListener
+                val circleToRemove = circles.find { it["id"] == id }
+
+                if (circleToRemove != null) {
+                    db.collection("users").document(uid)
+                        .update("savedCircles", com.google.firebase.firestore.FieldValue.arrayRemove(circleToRemove))
+                        .addOnSuccessListener {
+                            Toast.makeText(context, "Circle deleted successfully!", Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "Failed to delete circle", e)
+                            Toast.makeText(context, "Failed to delete: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                } else {
+                    Toast.makeText(context, "Circle not found", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error loading circles for deletion", e)
+                Toast.makeText(context, "Failed to load circles: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+    }
 
 
 

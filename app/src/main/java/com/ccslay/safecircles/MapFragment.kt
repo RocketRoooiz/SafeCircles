@@ -165,7 +165,7 @@ class MapFragment : Fragment() {
         map.overlays.add(myLocationOverlay)
 
         // Coordinates for DLSU
-        val dlsu = GeoPoint(14.5646, 120.9930)
+        val dlsu = GeoPoint(14.5663, 120.9931)
         map.controller.setZoom(16.0)
         map.controller.setCenter(dlsu)
 
@@ -177,10 +177,24 @@ class MapFragment : Fragment() {
                 org.osmdroid.views.overlay.Marker.ANCHOR_CENTER,
                 org.osmdroid.views.overlay.Marker.ANCHOR_BOTTOM
             )
-            icon = resources.getDrawable(R.drawable.ic_launcher_foreground, requireContext().theme)
+            icon = resources.getDrawable(R.drawable.baseline_account_circle_24, requireContext().theme)
         }
         map.overlays.add(marker)
         map.invalidate()
+
+        if (myZones.none { it.nameType == "You" }) {
+            val zone = LocationCircle(
+                id = System.currentTimeMillis().toString(),
+                center = dlsu,
+                radiusMeters = 50.0,
+                isDisaster = false,
+                nameType = "You"
+            )
+            zone.attach(map)
+            myZones.add(zone)
+            MyDbHelper(requireContext()).saveLocationCircle(zone)
+        }
+
     }
 
     private fun addRecenterButton(root: FrameLayout) {
@@ -213,12 +227,13 @@ class MapFragment : Fragment() {
         val receiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
                 p ?: return false
-                showRadiusDialog(defaultMeters = 500.0) { radius, isDisaster ->
+                showRadiusDialog(defaultMeters = 500.0) { radius, isDisaster, nameType ->
                     val zone = LocationCircle(
                         id = System.currentTimeMillis().toString(),
                         center = p,
                         radiusMeters = radius,
-                        isDisaster = isDisaster
+                        isDisaster = isDisaster,
+                        nameType = nameType
                     )
                     zone.attach(map)
 
@@ -248,7 +263,7 @@ class MapFragment : Fragment() {
 
     private fun showRadiusDialog(
         defaultMeters: Double = 500.0,
-        onOk: (Double, Boolean) -> Unit // Returns radius + disaster flag
+        onOk: (Double, Boolean, String) -> Unit
     ) {
         val layout = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
@@ -266,8 +281,62 @@ class MapFragment : Fragment() {
             isChecked = false
         }
 
+        val dynamicContainer = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 16, 0, 0)
+        }
+
+        // Name input for non-disaster
+        val nameInput = EditText(requireContext()).apply {
+            hint = "Enter location name"
+        }
+
+        // Disaster type dropdown
+        val disasterSpinner = Spinner(requireContext()).apply {
+            adapter = ArrayAdapter(
+                requireContext(),
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf("Fire", "Flood", "Earthquake")
+            )
+        }
+
+        val attachedImageView = ImageView(requireContext()).apply {
+            setImageResource(R.drawable.disaster) // pre-selected image
+            adjustViewBounds = true
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            visibility = View.GONE
+        }
+
+        // Attach Image button
+        val attachImageButton = Button(requireContext()).apply {
+            text = "Attach Image"
+            setOnClickListener {
+                attachedImageView.visibility = View.VISIBLE
+            }
+        }
+
+        // Initially add the name input
+        dynamicContainer.removeAllViews()
+        dynamicContainer.addView(nameInput)
+
+        // Switch behavior
+        disasterSwitch.setOnCheckedChangeListener { _, isChecked ->
+            dynamicContainer.removeAllViews()
+            if (isChecked) {
+                dynamicContainer.addView(disasterSpinner)
+                dynamicContainer.addView(attachImageButton)
+                dynamicContainer.addView(attachedImageView)
+            } else {
+                dynamicContainer.addView(nameInput)
+            }
+        }
+
         layout.addView(radiusInput)
         layout.addView(disasterSwitch)
+        layout.addView(dynamicContainer)
 
         AlertDialog.Builder(requireContext())
             .setTitle("Set Circle Details")
@@ -277,7 +346,12 @@ class MapFragment : Fragment() {
                 if (v == null || v <= 0) {
                     Toast.makeText(requireContext(), "Enter a positive number", Toast.LENGTH_SHORT).show()
                 } else {
-                    onOk(v, disasterSwitch.isChecked) // Pass both values
+                    val extraValue = if (disasterSwitch.isChecked) {
+                        disasterSpinner.selectedItem.toString()
+                    } else {
+                        nameInput.text.toString()
+                    }
+                    onOk(v, disasterSwitch.isChecked, extraValue)
                 }
                 d.dismiss()
             }
@@ -285,20 +359,68 @@ class MapFragment : Fragment() {
             .show()
     }
 
+    private val triggeredOverlaps = mutableSetOf<Pair<String, String>>()
+
     private fun checkOverlapsAndNotify(
         safe: List<LocationCircle>,
         hazards: List<LocationCircle>
     ) {
         for (s in safe) {
             for (h in hazards) {
+                val pairKey = s.id to h.id  // Or nameType if you don’t have IDs
+                if (pairKey in triggeredOverlaps) continue // Already notified
+
                 if (circlesOverlap(s, h)) {
+                    triggeredOverlaps.add(pairKey)
+
                     notifier.showNotification(
                         title = "⚠️ Hazard near your zone",
-                        message = "A disaster area overlaps your '${s.id}' zone."
+                        message = "A disaster area overlaps your '${s.nameType}' zone."
                     )
-                    return // Avoid multiple notifications at once
+
+                    if (isAdded && isVisible) {
+                        showHelpResourcesDialog()
+                    }
                 }
             }
         }
+    }
+
+    private fun showHelpResourcesDialog() {
+        val resourcesList = listOf(
+            "Philippine Fire Department" to "tel:911", // change to real number
+            "Local Government Unit" to "tel:1234567890" // change to real number
+        )
+
+        val layout = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+        }
+
+        resourcesList.forEach { (label, phone) ->
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                val textView = TextView(requireContext()).apply {
+                    text = label
+                    textSize = 16f
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                val callButton = Button(requireContext()).apply {
+                    text = "Call"
+                    setOnClickListener {
+                        Toast.makeText(requireContext(), "Calling $label…", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                addView(textView)
+                addView(callButton)
+            }
+            layout.addView(row)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Emergency Contacts")
+            .setView(layout)
+            .setPositiveButton("Close", null)
+            .show()
     }
 }

@@ -48,7 +48,7 @@ class LoginActivity : ComponentActivity() {
                 .addOnSuccessListener { document ->
                     if (document != null && document.exists()) {
                         val username = document.getString("name") ?: "Unknown"
-                        val intent = Intent(this, MainActivity::class.java)
+                        val intent = Intent(this, HomeActivity::class.java)
                         intent.putExtra(IntentKeys.USER_NAME_KEY.name, username)
                         Toast.makeText(this, "Welcome, $username!", Toast.LENGTH_SHORT).show()
                         startActivity(intent)

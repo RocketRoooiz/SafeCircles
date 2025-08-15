@@ -74,7 +74,7 @@ class SavedLocationsFragment : Fragment() {
     }
 
     private fun handleDelete(circle: LocationCircle) {
-//        dbHelper.deleteLocationCircle(circle.id)
+        dbHelper.deleteLocationCircle(circle.id)
         Toast.makeText(requireContext(), "Location deleted", Toast.LENGTH_SHORT).show()
     }
 

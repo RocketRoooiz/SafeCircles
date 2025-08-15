@@ -58,9 +58,8 @@ class SavedLocationsAdapter(
     private fun getLocationDisplayName(circle: LocationCircle): String {
         // You might want to add a name property to LocationCircle
         // For now, we'll create a display name based on coordinates and type
-        val type = if (circle.isDisaster) "Disaster Zone" else "Watch Area"
-        val coords = "${String.format("%.4f", circle.center.latitude)}, ${String.format("%.4f", circle.center.longitude)}"
-        return "$type - $coords"
+        val name = circle.nameType
+        return "$name"
     }
 
     private fun updateNotificationButton(button: ImageButton, isEnabled: Boolean) {
