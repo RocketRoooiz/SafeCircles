@@ -9,7 +9,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/Aeonik_Bold"
+        android:fontFamily="@font/aeonik_bold"
         android:text="Login"
         android:textColor="@color/primary"
         android:textSize="30sp" />
@@ -25,8 +25,8 @@
             android:id="@+id/emailEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textEmailAddress"
-            android:fontFamily="@font/Aeonik_Regular" />
+            android:fontFamily="@font/aeonik_regular"
+            android:inputType="textEmailAddress" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
@@ -41,8 +41,8 @@
             android:id="@+id/passwordEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textPassword"
-            android:fontFamily="@font/Aeonik_Regular" />
+            android:fontFamily="@font/aeonik_regular"
+            android:inputType="textPassword" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <TextView
@@ -50,7 +50,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:fontFamily="@font/Aeonik_Bold"
+        android:fontFamily="@font/aeonik_bold"
         android:text="Forgot Password?"
         android:textColor="@color/primary" />
 
@@ -61,7 +61,7 @@
         android:layout_marginTop="20dp"
         android:layout_marginBottom="20dp"
         android:backgroundTint="@color/primary"
-        android:fontFamily="@font/Aeonik_Bold"
+        android:fontFamily="@font/aeonik_bold"
         android:text="Login" />
 
     <LinearLayout
@@ -75,7 +75,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="5dp"
-            android:fontFamily="@font/Aeonik_Regular"
+            android:fontFamily="@font/aeonik_regular"
             android:text="Don't have an account?" />
 
         <TextView
@@ -84,7 +84,7 @@
             android:layout_height="wrap_content"
             android:clickable="true"
             android:focusable="true"
-            android:fontFamily="@font/Aeonik_Bold"
+            android:fontFamily="@font/aeonik_bold"
             android:text="Register Now"
             android:textColor="@color/primary" />
     </LinearLayout>

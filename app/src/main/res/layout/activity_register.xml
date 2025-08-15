@@ -15,17 +15,17 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/aeonik_bold"
             android:text="Register"
-            android:textSize="30sp"
             android:textColor="@color/primary"
-            android:fontFamily="@font/Aeonik_Bold" />
+            android:textSize="30sp" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:fontFamily="@font/aeonik_regular"
             android:text="Create an account to get started"
-            android:textSize="16sp"
-            android:fontFamily="@font/Aeonik_Regular" />
+            android:textSize="16sp" />
 
         <!-- Name -->
         <com.google.android.material.textfield.TextInputLayout
@@ -39,8 +39,8 @@
                 android:id="@+id/nameEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPersonName"
-                android:fontFamily="@font/Aeonik_Regular" />
+                android:fontFamily="@font/aeonik_regular"
+                android:inputType="textPersonName" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Phone Number -->
@@ -52,11 +52,11 @@
             android:hint="Phone Number">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/usernameEditText"
+                android:id="@+id/phoneNumberEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="phone"
-                android:fontFamily="@font/Aeonik_Regular" />
+                android:fontFamily="@font/aeonik_regular"
+                android:inputType="phone" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Email -->
@@ -71,8 +71,8 @@
                 android:id="@+id/emailEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textEmailAddress"
-                android:fontFamily="@font/Aeonik_Regular" />
+                android:fontFamily="@font/aeonik_regular"
+                android:inputType="textEmailAddress" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Password -->
@@ -82,15 +82,14 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:hint="Password"
-            app:endIconMode="password_toggle"
-            app:endIconTint="@color/password_toggle_tint">
+            app:endIconMode="password_toggle">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/passwordEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPassword"
-                android:fontFamily="@font/Aeonik_Regular" />
+                android:fontFamily="@font/aeonik_regular"
+                android:inputType="textPassword" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Confirm Password -->
@@ -101,14 +100,14 @@
             android:layout_marginTop="5dp"
             android:hint="Confirm Password"
             app:endIconMode="password_toggle"
-            app:endIconTint="@color/password_toggle_tint">
+            app:endIconTint="@android:color/system_palette_key_color_secondary_light">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/confirmPassEditText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPassword"
-                android:fontFamily="@font/Aeonik_Regular" />
+                android:fontFamily="@font/aeonik_regular"
+                android:inputType="textPassword" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Register Button -->
@@ -116,10 +115,10 @@
             android:id="@+id/registerButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="@font/Aeonik_Bold"
-            android:backgroundTint="@color/primary"
             android:layout_marginTop="20dp"
             android:layout_marginBottom="20dp"
+            android:backgroundTint="@color/primary"
+            android:fontFamily="@font/aeonik_bold"
             android:text="Register"
             android:textSize="16sp" />
 
@@ -134,8 +133,8 @@
                 android:id="@+id/noAccText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/Aeonik_Regular"
                 android:layout_marginEnd="5dp"
+                android:fontFamily="@font/aeonik_regular"
                 android:text="Already have an account?"
                 android:textSize="14sp" />
 
@@ -143,10 +142,10 @@
                 android:id="@+id/loginLink"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:fontFamily="@font/Aeonik_Bold"
+                android:fontFamily="@font/aeonik_bold"
                 android:text="Login"
-                android:textSize="14sp"
-                android:textColor="@color/primary" />
+                android:textColor="@color/primary"
+                android:textSize="14sp" />
         </LinearLayout>
     </LinearLayout>
 

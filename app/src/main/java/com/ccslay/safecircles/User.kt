@@ -6,7 +6,6 @@ data class User(
     var email: String = "",
     var phoneNumber: String = "",
     var name: String = "",
-    var currentLocation: String = "",
     var homeCircle: LocationCircle,
     var savedCircles: ArrayList<LocationCircle>,
     var friends: ArrayList<User>
