@@ -3,6 +3,7 @@ package com.ccslay.safecircles
 import android.Manifest
 import android.app.AlertDialog
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.*
@@ -11,7 +12,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.Fragment
+import com.ccslay.safecircles.notifications.NotificationHelper
 import com.ccslay.safecircles.zone.LocationCircle
+import com.ccslay.safecircles.zone.LocationCircle.Companion.circlesOverlap
 import com.google.firebase.firestore.ListenerRegistration
 import org.osmdroid.api.IGeoPoint
 import org.osmdroid.events.MapEventsReceiver
@@ -25,9 +28,15 @@ class MapFragment : Fragment() {
 
     private lateinit var dbHelper: MyDbHelper
     private val myZones = mutableListOf<LocationCircle>()
+    private val disasterZones = mutableListOf<LocationCircle>()
+
     private lateinit var map: MapView
     private var myLocationOverlay: MyLocationNewOverlay? = null
-    private var circlesListener: ListenerRegistration? = null
+
+    private var safeListener: ListenerRegistration? = null
+    private var disasterListener: ListenerRegistration? = null
+
+    private lateinit var notifier: NotificationHelper
 
     // Ask for location at runtime
     private val requestLocPerms = registerForActivityResult(
@@ -39,6 +48,15 @@ class MapFragment : Fragment() {
         else Toast.makeText(requireContext(), "Location permission denied", Toast.LENGTH_SHORT).show()
     }
 
+    // Request notification permission for Android 13+
+    private val requestNotificationPerm = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(requireContext(), "Notification permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -48,8 +66,9 @@ class MapFragment : Fragment() {
 
         map = root.findViewById(R.id.map)
         dbHelper = MyDbHelper(requireContext())
+        notifier = NotificationHelper(requireContext())
 
-        // If permission already granted, enable immediately; otherwise request it
+        // Request permissions
         if (hasLocationPermission()) enableMyLocation()
         else requestLocPerms.launch(
             arrayOf(
@@ -58,24 +77,53 @@ class MapFragment : Fragment() {
             )
         )
 
+        // Request notification permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(
+                    requireContext(),
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPerm.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         addRecenterButton(root as FrameLayout)
         enableTapToCreateZone()
 
-        // Observe saved circles from database
-        circlesListener = dbHelper.observeSavedCircles(
-            onChange = { circles ->
-                // Clear existing zones to avoid duplicates
+        // Observe safe circles
+        safeListener = dbHelper.observeSavedCircles(
+            onChange = { safeCircles ->
+                // Redraw safe circles
+                myZones.forEach { it.detach() }
                 myZones.clear()
-
-                // Attach fetched circles
-                circles.forEach { circle ->
-                    circle.attach(map)
-                    myZones.add(circle)
+                safeCircles.forEach {
+                    it.attach(map)
+                    myZones.add(it)
                 }
                 map.invalidate()
+                checkOverlapsAndNotify(myZones, disasterZones)
             },
             onError = { e ->
                 Toast.makeText(requireContext(), "Failed to load circles: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        )
+
+        // Observe disaster circles
+        disasterListener = dbHelper.observeDisasterCircles(
+            onChange = { hazardCircles ->
+                // Redraw disaster circles
+                disasterZones.forEach { it.detach() }
+                disasterZones.clear()
+                hazardCircles.forEach {
+                    it.attach(map)
+                    disasterZones.add(it)
+                }
+                map.invalidate()
+                checkOverlapsAndNotify(myZones, disasterZones)
+            },
+            onError = { e ->
+                Toast.makeText(requireContext(), "Failed to load disasters: ${e.message}", Toast.LENGTH_LONG).show()
             }
         )
 
@@ -83,8 +131,10 @@ class MapFragment : Fragment() {
     }
 
     override fun onDestroy() {
-        circlesListener?.remove()
-        circlesListener = null
+        safeListener?.remove()
+        disasterListener?.remove()
+        safeListener = null
+        disasterListener = null
         super.onDestroy()
     }
 
@@ -163,7 +213,7 @@ class MapFragment : Fragment() {
         val receiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
                 p ?: return false
-                showRadiusDialog(defaultMeters = 600.0) { radius, isDisaster ->
+                showRadiusDialog(defaultMeters = 500.0) { radius, isDisaster ->
                     val zone = LocationCircle(
                         id = System.currentTimeMillis().toString(),
                         center = p,
@@ -171,7 +221,13 @@ class MapFragment : Fragment() {
                         isDisaster = isDisaster
                     )
                     zone.attach(map)
-                    myZones.add(zone)
+
+                    // Add to appropriate list
+                    if (isDisaster) {
+                        disasterZones.add(zone)
+                    } else {
+                        myZones.add(zone)
+                    }
 
                     MyDbHelper(requireContext()).saveLocationCircle(zone)
                     Toast.makeText(
@@ -179,6 +235,9 @@ class MapFragment : Fragment() {
                         if (isDisaster) "Disaster area added (${radius.toInt()} m)" else "Watch area added (${radius.toInt()} m)",
                         Toast.LENGTH_SHORT
                     ).show()
+
+                    // Check for overlaps after adding new zone
+                    checkOverlapsAndNotify(myZones, disasterZones)
                 }
                 return true
             }
@@ -188,7 +247,7 @@ class MapFragment : Fragment() {
     }
 
     private fun showRadiusDialog(
-        defaultMeters: Double = 600.0,
+        defaultMeters: Double = 500.0,
         onOk: (Double, Boolean) -> Unit // Returns radius + disaster flag
     ) {
         val layout = LinearLayout(requireContext()).apply {
@@ -224,5 +283,22 @@ class MapFragment : Fragment() {
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
+    }
+
+    private fun checkOverlapsAndNotify(
+        safe: List<LocationCircle>,
+        hazards: List<LocationCircle>
+    ) {
+        for (s in safe) {
+            for (h in hazards) {
+                if (circlesOverlap(s, h)) {
+                    notifier.showNotification(
+                        title = "⚠️ Hazard near your zone",
+                        message = "A disaster area overlaps your '${s.id}' zone."
+                    )
+                    return // Avoid multiple notifications at once
+                }
+            }
+        }
     }
 }
