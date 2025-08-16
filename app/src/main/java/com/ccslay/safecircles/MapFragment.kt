@@ -38,6 +38,9 @@ class MapFragment : Fragment() {
 
     private lateinit var notifier: NotificationHelper
 
+    // For real-time preview
+    private var previewCircle: LocationCircle? = null
+
     // Ask for location at runtime
     private val requestLocPerms = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -205,11 +208,9 @@ class MapFragment : Fragment() {
                 }
             },
             onFailure = { e ->
-
                 Toast.makeText(requireContext(), "Error loading zones: ${e.message}", Toast.LENGTH_LONG).show()
             }
         )
-
     }
 
     private fun addRecenterButton(root: FrameLayout) {
@@ -242,7 +243,7 @@ class MapFragment : Fragment() {
         val receiver = object : MapEventsReceiver {
             override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
                 p ?: return false
-                showRadiusDialog(defaultMeters = 500.0) { radius, isDisaster, nameType ->
+                showRadiusDialog(p, defaultMeters = 500.0) { radius, isDisaster, nameType ->
                     val zone = LocationCircle(
                         id = System.currentTimeMillis().toString(),
                         center = p,
@@ -277,18 +278,13 @@ class MapFragment : Fragment() {
     }
 
     private fun showRadiusDialog(
+        tapPoint: GeoPoint,
         defaultMeters: Double = 500.0,
         onOk: (Double, Boolean, String) -> Unit
     ) {
         val layout = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 24)
-        }
-
-        val radiusInput = EditText(requireContext()).apply {
-            hint = "Radius in meters"
-            setText(defaultMeters.toInt().toString())
-            inputType = InputType.TYPE_CLASS_NUMBER
+            setPadding(48, 16, 48, 16) // Reduced padding for more compact dialog
         }
 
         val disasterSwitch = SwitchCompat(requireContext()).apply {
@@ -296,14 +292,10 @@ class MapFragment : Fragment() {
             isChecked = false
         }
 
-        val dynamicContainer = LinearLayout(requireContext()).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 16, 0, 0)
-        }
-
         // Name input for non-disaster
         val nameInput = EditText(requireContext()).apply {
             hint = "Enter location name"
+            inputType = InputType.TYPE_CLASS_TEXT
         }
 
         // Disaster type dropdown
@@ -316,12 +308,10 @@ class MapFragment : Fragment() {
         }
 
         val attachedImageView = ImageView(requireContext()).apply {
-            setImageResource(R.drawable.disaster) // pre-selected image
+            setImageResource(R.drawable.disaster)
             adjustViewBounds = true
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            maxHeight = (100 * resources.displayMetrics.density).toInt()
+            scaleType = ImageView.ScaleType.CENTER_CROP
             visibility = View.GONE
         }
 
@@ -333,11 +323,43 @@ class MapFragment : Fragment() {
             }
         }
 
-        // Initially add the name input
+        // Radius label and value display
+        val radiusLabel = TextView(requireContext()).apply {
+            text = "Radius: ${defaultMeters.toInt()}m"
+            textSize = 16f
+            setPadding(0, 0, 0, 8)
+        }
+
+        // Slider for radius (50m to 2000m range) - Enhanced for better UX
+        val radiusSlider = SeekBar(requireContext()).apply {
+            max = 1950 // 2000 - 50 = 1950
+            progress = (defaultMeters - 50).toInt() // Convert to slider range
+            setPadding(0, 8, 0, 16)
+
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        val radiusValue = (progress + 50).toDouble() // Convert back to actual radius (min 50m)
+                        radiusLabel.text = "Radius: ${radiusValue.toInt()}m"
+
+                        // Update preview circle in real-time
+                        updatePreviewCircle(tapPoint, radiusValue, disasterSwitch.isChecked)
+                    }
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+
+        val dynamicContainer = LinearLayout(requireContext()).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 0)
+        }
         dynamicContainer.removeAllViews()
         dynamicContainer.addView(nameInput)
 
-        // Switch behavior
+        // Switch behavior with real-time updates
         disasterSwitch.setOnCheckedChangeListener { _, isChecked ->
             dynamicContainer.removeAllViews()
             if (isChecked) {
@@ -347,31 +369,90 @@ class MapFragment : Fragment() {
             } else {
                 dynamicContainer.addView(nameInput)
             }
+
+            // Update preview circle when switch changes
+            val radiusValue = (radiusSlider.progress + 50).toDouble()
+            updatePreviewCircle(tapPoint, radiusValue, isChecked)
         }
 
-        layout.addView(radiusInput)
+        // Create initial preview circle
+        updatePreviewCircle(tapPoint, defaultMeters, false)
+
+        // Add views to layout
+        layout.addView(radiusLabel)
+        layout.addView(radiusSlider)
         layout.addView(disasterSwitch)
         layout.addView(dynamicContainer)
 
-        AlertDialog.Builder(requireContext())
+        // Create dialog positioned at bottom with transparency
+        val dialog = AlertDialog.Builder(requireContext())
             .setTitle("Set Circle Details")
             .setView(layout)
             .setPositiveButton("OK") { d, _ ->
-                val v = radiusInput.text.toString().toDoubleOrNull()
-                if (v == null || v <= 0) {
-                    Toast.makeText(requireContext(), "Enter a positive number", Toast.LENGTH_SHORT).show()
+                val radiusValue = (radiusSlider.progress + 50).toDouble()
+                val extraValue = if (disasterSwitch.isChecked) {
+                    disasterSpinner.selectedItem.toString()
                 } else {
-                    val extraValue = if (disasterSwitch.isChecked) {
-                        disasterSpinner.selectedItem.toString()
-                    } else {
-                        nameInput.text.toString()
-                    }
-                    onOk(v, disasterSwitch.isChecked, extraValue)
+                    nameInput.text.toString()
                 }
+
+                // Remove preview circle before creating final one
+                removePreviewCircle()
+
+                onOk(radiusValue, disasterSwitch.isChecked, extraValue)
                 d.dismiss()
             }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
+            .setNegativeButton("Cancel") { d, _ ->
+                // Remove preview circle on cancel
+                removePreviewCircle()
+                d.dismiss()
+            }
+            .setOnDismissListener {
+                // Clean up preview circle when dialog is dismissed
+                removePreviewCircle()
+            }
+            .create()
+
+        // Position dialog at bottom with custom styling
+        dialog.show()
+        val window = dialog.window
+        window?.let {
+            val params = it.attributes
+            params.gravity = Gravity.BOTTOM
+            params.y = (50 * resources.displayMetrics.density).toInt() // Margin from bottom
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT
+            it.attributes = params
+
+            // Add semi-transparent background to make map visible behind
+            it.setDimAmount(0.3f) // Reduce dim amount to see map better
+        }
+    }
+
+    private fun updatePreviewCircle(center: GeoPoint, radiusMeters: Double, isDisaster: Boolean) {
+        // Remove existing preview circle
+        removePreviewCircle()
+
+        // Create new preview circle with temporary ID and different name
+        previewCircle = LocationCircle(
+            id = "preview_${System.currentTimeMillis()}",
+            center = center,
+            radiusMeters = radiusMeters,
+            isDisaster = isDisaster,
+            nameType = "Preview (${radiusMeters.toInt()}m)"
+        ).apply {
+            // Attach normally - the preview nature is handled by our cleanup logic
+            attach(map)
+        }
+
+        map.invalidate()
+    }
+
+    private fun removePreviewCircle() {
+        previewCircle?.let { circle ->
+            circle.detach()
+            previewCircle = null
+            map.invalidate()
+        }
     }
 
     private val triggeredOverlaps = mutableSetOf<Pair<String, String>>()
@@ -382,7 +463,7 @@ class MapFragment : Fragment() {
     ) {
         for (s in safe) {
             for (h in hazards) {
-                val pairKey = s.id to h.id  // Or nameType if you don’t have IDs
+                val pairKey = s.id to h.id
                 if (pairKey in triggeredOverlaps) continue // Already notified
 
                 if (circlesOverlap(s, h)) {
@@ -403,8 +484,8 @@ class MapFragment : Fragment() {
 
     private fun showHelpResourcesDialog() {
         val resourcesList = listOf(
-            "Philippine Fire Department" to "tel:911", // change to real number
-            "Local Government Unit" to "tel:1234567890" // change to real number
+            "Philippine Fire Department" to "tel:911",
+            "Local Government Unit" to "tel:1234567890"
         )
 
         val layout = LinearLayout(requireContext()).apply {
