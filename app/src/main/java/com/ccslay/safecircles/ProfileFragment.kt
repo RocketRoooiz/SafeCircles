@@ -11,14 +11,21 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
+import com.google.firebase.firestore.firestore
 
 class ProfileFragment : Fragment() {
 
     private lateinit var nameDisp: TextView
+    private lateinit var emailDisp: TextView
+    private lateinit var phoneDisp: TextView
     private lateinit var phoneRow: LinearLayout
     private lateinit var emailRow: LinearLayout
     private lateinit var logOut: LinearLayout
     private lateinit var profileImage: ImageView
+    private lateinit var auth: FirebaseAuth
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -28,22 +35,32 @@ class ProfileFragment : Fragment() {
 
         // Bind views
         nameDisp = view.findViewById(R.id.nameDisp)
+        phoneDisp = view.findViewById(R.id.phoneDisp)
+        emailDisp = view.findViewById(R.id.emailDisp)
         phoneRow = view.findViewById(R.id.phoneRow)
         emailRow = view.findViewById(R.id.emailRow)
         logOut = view.findViewById(R.id.logOut)
         profileImage = view.findViewById(R.id.roundedProfile)
 
         // TODO: Replace with actual user data from your storage / API
-        nameDisp.text = "Juan Dela Cruz"
+        auth = Firebase.auth
+        val currentUser = auth.currentUser
 
-        // Set up actions
-        phoneRow.setOnClickListener {
-            Toast.makeText(requireContext(), "Phone: 09999999999", Toast.LENGTH_SHORT).show()
+        if (currentUser != null) {
+            val db = Firebase.firestore
+            db.collection("users").document(currentUser.uid).get()
+                .addOnSuccessListener { document ->
+                    if (document != null && document.exists()) {
+                        val username = document.getString("name") ?: "Unknown"
+                        nameDisp.text = username
+                        phoneDisp.text = document.getString("phoneNumber") ?: "Unknown"
+                        emailDisp.text = document.getString("email") ?: "Unknown"
+
+                        // Set up actions
+                    }
+                }
         }
 
-        emailRow.setOnClickListener {
-            Toast.makeText(requireContext(), "Email: juandelacruz@email.com", Toast.LENGTH_SHORT).show()
-        }
 
         val mydbHelper = MyDbHelper(requireContext())
 
