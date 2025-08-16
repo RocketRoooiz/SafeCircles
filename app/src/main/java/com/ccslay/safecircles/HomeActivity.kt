@@ -45,6 +45,11 @@ class HomeActivity : AppCompatActivity() {
                     supportActionBar?.title = "Recent Reports"
                     true
                 }
+                R.id.profile -> {
+                    loadFragment(ProfileFragment())
+                    supportActionBar?.title = "Profile"
+                    true
+                }
                 else -> false
             }
         }

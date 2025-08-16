@@ -77,16 +77,35 @@ class MyDbHelper(private val context: Context) {
         onSuccess: (List<LocationCircle>) -> Unit,
         onFailure: (Exception) -> Unit = { e -> Log.e(TAG, "loadSavedCircles error", e) }
     ) {
-        val uid = auth.currentUser?.uid ?: return
+        val uid = auth.currentUser?.uid
+        if (uid == null) {
+            onFailure(IllegalStateException("User must be logged in"))
+            return
+        }
+
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
-                val raw = doc.get("savedCircles") as? List<*>
-                val circles = raw?.mapNotNull { it as? Map<String, Any> }?.map { LocationCircle.fromMap(it) }
-                    ?: emptyList()
-                onSuccess(circles)
+                try {
+                    val raw = doc.get("savedCircles") as? List<*>
+                    val circleMaps = raw?.mapNotNull { it as? Map<String, Any> } ?: emptyList()
+
+                    val circles = circleMaps.mapNotNull { map ->
+                        try {
+                            LocationCircle.fromMap(map)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to parse LocationCircle from map: $map", e)
+                            null
+                        }
+                    }
+
+                    onSuccess(circles)
+                } catch (e: Exception) {
+                    onFailure(e)
+                }
             }
             .addOnFailureListener(onFailure)
     }
+
 
 
 
@@ -140,7 +159,7 @@ class MyDbHelper(private val context: Context) {
                                 }
 
                             // Move to the map activity
-                            val i = Intent(context, MainActivity::class.java)
+                            val i = Intent(context, LoginActivity::class.java)
                             i.putExtra("USER_NAME_KEY", name)
                             context.startActivity(i)
                             if (context is android.app.Activity) {
@@ -173,7 +192,7 @@ class MyDbHelper(private val context: Context) {
                                     val username = document.getString("username") ?: "Unknown"
                                     Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
 
-                                    val i = Intent(context, MainActivity::class.java)
+                                    val i = Intent(context, HomeActivity::class.java)
                                     i.putExtra(IntentKeys.USER_NAME_KEY.name, username) // Pass the username
                                     context.startActivity(i)
                                     if (context is android.app.Activity) {

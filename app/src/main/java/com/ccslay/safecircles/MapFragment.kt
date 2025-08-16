@@ -182,18 +182,33 @@ class MapFragment : Fragment() {
         map.overlays.add(marker)
         map.invalidate()
 
-        if (myZones.none { it.nameType == "You" }) {
-            val zone = LocationCircle(
-                id = System.currentTimeMillis().toString(),
-                center = dlsu,
-                radiusMeters = 50.0,
-                isDisaster = false,
-                nameType = "You"
-            )
-            zone.attach(map)
-            myZones.add(zone)
-            MyDbHelper(requireContext()).saveLocationCircle(zone)
-        }
+        val myDbHelper = MyDbHelper(requireContext())
+
+        myDbHelper.loadSavedCircles(
+            onSuccess = { savedCircles ->
+                if (savedCircles.isEmpty()) {
+                    // ✅ No saved zones — add a new one
+                    val zone = LocationCircle(
+                        id = System.currentTimeMillis().toString(),
+                        center = dlsu,
+                        radiusMeters = 50.0,
+                        isDisaster = false,
+                        nameType = "You"
+                    )
+                    zone.attach(map) // Draw on map
+                    myDbHelper.saveLocationCircle(zone)
+                } else {
+                    // ✅ Circles exist — draw them on map
+                    for (zone in savedCircles) {
+                        zone.attach(map)
+                    }
+                }
+            },
+            onFailure = { e ->
+
+                Toast.makeText(requireContext(), "Error loading zones: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        )
 
     }
 
