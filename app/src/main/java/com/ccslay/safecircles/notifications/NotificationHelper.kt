@@ -49,7 +49,7 @@ class NotificationHelper(private val context: Context) {
 
     fun showNotification(title: String, message: String, openMainOnTap: Boolean = true) {
         val id = (title + "|" + message).hashCode()
-        if (shownNotificationIds.contains(id)) return
+        //if (shownNotificationIds.contains(id)) return
         shownNotificationIds.add(id)
         saveShownIds()
 
